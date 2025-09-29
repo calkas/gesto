@@ -1,6 +1,3 @@
-/* Linker script for the STM32F407 */
-/* See https://docs.rs/cortex-m-rt/latest/cortex_m_rt/ */
-
 MEMORY
 {
   FLASH : ORIGIN = 0x08000000, LENGTH = 1024K
@@ -13,6 +10,10 @@ MEMORY
 }
 
 _stack_start = ORIGIN(CCRAM) + LENGTH(CCRAM);
+_stext = ORIGIN(FLASH);
+
+/* Linker script for the STM32F407 */
+/* See https://docs.rs/cortex-m-rt/latest/cortex_m_rt/ */
 
 /*
     ---------------------------
