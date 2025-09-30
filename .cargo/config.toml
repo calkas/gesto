@@ -1,6 +1,6 @@
-rustflags = [
-  "-C", "link-arg=-Tlink.x",
-]
-
 [build]
-target = "thumbv7em-none-eabi"
+target = "thumbv7em-none-eabihf"
+
+[target.thumbv7em-none-eabihf]
+rustflags = ["-Clinker=rust-lld", "-Clink-arg=-Tlink.x"]
+runner = "arm-none-eabi-gdb"
