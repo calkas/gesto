@@ -5,6 +5,7 @@ This project implements a gesture recognition system based on accelerometer data
 `STM32F4-Discovery Board` - STM32F407VGT6 microcontroller featuring 32-bit Arm® Cortex-M4 with FPU core, 1-Mbyte flash memory and 192-Kbyte RAM in an LQFP100 package and frequency up to 168 MHz.
 
 [Data Sheet](https://www.st.com/resource/en/datasheet/dm00037051.pdf)
+
 [Schematic](https://www.st.com/resource/en/schematic_pack/mb997-f407vgt6-b02_schematic.pdf)
 
 ### Memory layout
