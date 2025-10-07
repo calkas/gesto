@@ -2,21 +2,23 @@
 #![no_main]
 #![no_std]
 
+use core::fmt::Write;
 use cortex_m_rt::entry;
 use panic_halt as _;
 use stm32f4xx_hal::gpio::gpiod::Parts;
 use stm32f4xx_hal::gpio::{Output, Pin, PushPull};
 use stm32f4xx_hal::timer::*;
+use stm32f4xx_hal::uart::Config;
 use stm32f4xx_hal::{pac, prelude::*};
 
-fn get_led(
-    led_port: Parts,
-) -> (
+type LedPinOut = (
     Pin<'D', 12, Output<PushPull>>,
     Pin<'D', 13, Output<PushPull>>,
     Pin<'D', 14, Output<PushPull>>,
     Pin<'D', 15, Output<PushPull>>,
-) {
+);
+
+fn get_led(led_port: Parts) -> LedPinOut {
     let led_green = led_port.pd12.into_push_pull_output();
     let led_red = led_port.pd13.into_push_pull_output();
     let led_orange = led_port.pd14.into_push_pull_output();
@@ -28,6 +30,7 @@ fn get_led(
 //iteam lvl macro
 #[entry]
 fn main() -> ! {
+    //Device Peripherals
     let dp = pac::Peripherals::take().unwrap();
     let rcc = dp.RCC.constrain();
     let clocks = rcc
@@ -47,9 +50,27 @@ fn main() -> ! {
     let mut led = get_led(gpiod);
     led.0.set_high();
 
+    // UART config
+    let gpiob = dp.GPIOB.split();
+    let usart_tx_pin = gpiob.pb6.into_alternate();
+
+    let mut usart = dp
+        .USART1
+        .tx(
+            usart_tx_pin,
+            Config::default()
+                .baudrate(115200.bps())
+                .wordlength_8()
+                .parity_none(),
+            &clocks,
+        )
+        .unwrap();
     // Delay config
     // For system frequency more than 65 MHz
     let mut delay = dp.TIM1.delay_us(&clocks);
+
+    usart.write_char('D').unwrap();
+    led.3.set_high();
 
     let mut last_button_state = false;
     loop {
@@ -59,6 +80,10 @@ fn main() -> ! {
             delay.delay(20.millis());
             if button.is_high() {
                 led.2.toggle();
+                let s = usart.write_str("USART Baby");
+                if s.is_err() {
+                    led.3.set_low();
+                }
             }
         }
 

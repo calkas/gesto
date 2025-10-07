@@ -49,6 +49,14 @@ fSYSCLK = (8/8) * 336 / 2 = 168MHz
 | LD6   | GREEN   | PD12  | GPIOD  |
 
 
+### USART1
+
+| STM32 PIN   | FT232 PIN  |
+|-------------|------------|
+| PB6 (TX)    | RX         |
+| PB7 (RX)    | TX         |
+| GND         | GND         |
+
 ## Software
 
 ### Project configuration
