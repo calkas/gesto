@@ -8,7 +8,7 @@ use panic_halt as _;
 use stm32f4xx_hal::gpio::gpiod::Parts;
 use stm32f4xx_hal::gpio::{Output, Pin, PushPull};
 use stm32f4xx_hal::timer::*;
-use stm32f4xx_hal::uart::Config;
+use stm32f4xx_hal::uart::{Config, Serial};
 use stm32f4xx_hal::{pac, prelude::*};
 
 type LedPinOut = (
@@ -30,7 +30,9 @@ fn get_led(led_port: Parts) -> LedPinOut {
 //iteam lvl macro
 #[entry]
 fn main() -> ! {
-    //Device Peripherals
+    // ---------------- CONFIGURATION ----------------
+
+    // 1. Device Peripherals and clocks
     let dp = pac::Peripherals::take().unwrap();
     let rcc = dp.RCC.constrain();
     let clocks = rcc
@@ -41,35 +43,40 @@ fn main() -> ! {
         .pclk2(84.MHz()) // APB2 max 84 MHz
         .freeze(); // zatwierdzenie konfiguracji
 
-    // User Button Config
+    // 2. User Button config
     let gpioa = dp.GPIOA.split();
     let button = gpioa.pa0.into_input();
 
-    // Led config
+    // 3. Led config
     let gpiod = dp.GPIOD.split();
     let mut led = get_led(gpiod);
     led.0.set_high();
 
-    // UART config
+    // 4. USART1 config alternative AF7
     let gpiob = dp.GPIOB.split();
-    let usart_tx_pin = gpiob.pb6.into_alternate();
+    let usart_tx_pin = gpiob.pb6.into_alternate::<7>();
+    let usart_rx_pin = gpiob.pb7.into_alternate::<7>();
 
-    let mut usart = dp
-        .USART1
-        .tx(
-            usart_tx_pin,
-            Config::default()
-                .baudrate(115200.bps())
-                .wordlength_8()
-                .parity_none(),
-            &clocks,
-        )
-        .unwrap();
-    // Delay config
+    let serial: Serial<pac::USART1, u8> = Serial::new(
+        dp.USART1,
+        (usart_tx_pin, usart_rx_pin),
+        Config::default()
+            .baudrate(115200.bps())
+            .wordlength_8()
+            .parity_none(),
+        &clocks,
+    )
+    .unwrap();
+
+    // 5. Delay config
     // For system frequency more than 65 MHz
     let mut delay = dp.TIM1.delay_us(&clocks);
 
-    usart.write_char('D').unwrap();
+    // ---------------- CONFIGURATION DONE ----------------
+
+    let (mut tx, _rx) = serial.split();
+    writeln!(tx, "Config Done\r").unwrap();
+
     led.3.set_high();
 
     let mut last_button_state = false;
@@ -80,10 +87,7 @@ fn main() -> ! {
             delay.delay(20.millis());
             if button.is_high() {
                 led.2.toggle();
-                let s = usart.write_str("USART Baby");
-                if s.is_err() {
-                    led.3.set_low();
-                }
+                writeln!(tx, "UART calling ").unwrap();
             }
         }
 
