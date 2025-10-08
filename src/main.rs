@@ -7,6 +7,7 @@ use cortex_m_rt::entry;
 use panic_halt as _;
 use stm32f4xx_hal::gpio::gpiod::Parts;
 use stm32f4xx_hal::gpio::{Output, Pin, PushPull};
+use stm32f4xx_hal::spi::{Mode, Phase, Polarity, Spi};
 use stm32f4xx_hal::timer::*;
 use stm32f4xx_hal::uart::{Config, Serial};
 use stm32f4xx_hal::{pac, prelude::*};
@@ -68,7 +69,27 @@ fn main() -> ! {
     )
     .unwrap();
 
-    // 5. Delay config
+    // 5. SPI1 config alternative AF5
+    let gpioe = dp.GPIOE.split();
+    let mut spi_cs = gpioe.pe3.into_push_pull_output();
+    let spi_sck = gpioa.pa5.into_alternate::<5>();
+    let spi_miso = gpioa.pa6.into_alternate::<5>();
+    let spi_mosi = gpioa.pa7.into_alternate::<5>();
+
+    let spi_mode = Mode {
+        polarity: Polarity::IdleHigh,
+        phase: Phase::CaptureOnSecondTransition,
+    };
+
+    let mut spi = Spi::new(
+        dp.SPI1,
+        (spi_sck, spi_miso, spi_mosi),
+        spi_mode,
+        1.MHz(),
+        &clocks,
+    );
+
+    // 6. Delay config
     // For system frequency more than 65 MHz
     let mut delay = dp.TIM1.delay_us(&clocks);
 
@@ -87,7 +108,23 @@ fn main() -> ! {
             delay.delay(20.millis());
             if button.is_high() {
                 led.2.toggle();
-                write!(tx, "UART calling ").unwrap();
+
+                // WHO_AM_I (0Fh) to LIS302DL
+                spi_cs.set_low();
+
+                //Bit 7    = 1 (odczyt)
+                //Bit 6    = 0 (pojedynczy odczyt)
+                //Bity 5-0 = adres rejestru
+
+                let read_cmd = 0x80 | 0x0F; // 0x8F
+                spi.write(&[read_cmd]).unwrap();
+                let mut who_am_i_id = [0];
+                spi.write(&[0x00]).unwrap(); // dummy write
+                spi.read(&mut who_am_i_id).unwrap();
+                spi_cs.set_high();
+
+                // Should be 3Bh
+                write!(tx, "LIS302DL Id: {:#X} ", who_am_i_id[0]).unwrap();
             }
         }
 

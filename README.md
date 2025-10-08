@@ -71,6 +71,30 @@ Communication with accelerometer [LIS302DL](https://www.st.com/resource/en/appli
 | PA6         | MISO       |
 | PA7         | MOSI       |
 
+#### LIS302DL
+
+##### SPI Read
+```
+bit 0: READ bit. The value is 1.
+bit 1: MS bit. When 0 do not increment address, when 1 increment address in multiple 
+reading.
+bit 2-7: address AD(5:0). This is the address field of the indexed register. 
+bit 8-15: data DO(7:0) (read mode). This is the data that will be read from the device (MSb 
+first).
+bit 16-... : data DO(...-8). Further data in multiple byte reading.
+```
+
+##### SPI Write
+```
+bit 0: WRITE bit. The value is 0.
+bit 1: MS bit. When 0 do not increment address, when 1 increment address in multiple 
+writing.
+bit 2 -7: address AD(5:0). This is the address field of the indexed register. 
+bit 8-15: data DI(7:0) (write mode). This is the data that will be written inside the device 
+(MSb first).
+bit 16-... : data DI(...-8). Further data in multiple byte writing
+```
+
 ## Software
 
 ### Project configuration
