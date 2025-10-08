@@ -10,10 +10,10 @@ MEMORY
 }
 
 
-/* Linker script for the STM32F407 */
-/* See https://docs.rs/cortex-m-rt/latest/cortex_m_rt/ */
+/* Linker script for the STM32F407
+   
+   See https://docs.rs/cortex-m-rt/latest/cortex_m_rt/
 
-/*
     ---------------------------
     |      MEMORY LAYOUT      |
     ---------------------------

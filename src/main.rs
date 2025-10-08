@@ -75,7 +75,7 @@ fn main() -> ! {
     // ---------------- CONFIGURATION DONE ----------------
 
     let (mut tx, _rx) = serial.split();
-    writeln!(tx, "Config Done\r").unwrap();
+    writeln!(tx, "Config Done").unwrap();
 
     led.3.set_high();
 
@@ -87,7 +87,7 @@ fn main() -> ! {
             delay.delay(20.millis());
             if button.is_high() {
                 led.2.toggle();
-                writeln!(tx, "UART calling ").unwrap();
+                write!(tx, "UART calling ").unwrap();
             }
         }
 

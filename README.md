@@ -1,5 +1,5 @@
 # gesto
-This project implements a gesture recognition system based on accelerometer data, running on the STM32F4 Discovery development board, using the Rust programming language and TinyML for lightweight machine learning inference.
+This project implements a gesture recognition system based on accelerometer data, running on the `STM32F4 Discovery` development board, using the Rust programming language and TinyML for lightweight machine learning inference.
 
 ## Hardware
 `STM32F4-Discovery Board` - STM32F407VGT6 microcontroller featuring 32-bit Arm® Cortex-M4 with FPU core, 1-Mbyte flash memory and 192-Kbyte RAM in an LQFP100 package and frequency up to 168 MHz.
@@ -49,13 +49,27 @@ fSYSCLK = (8/8) * 336 / 2 = 168MHz
 | LD6   | GREEN   | PD12  | GPIOD  |
 
 
-### USART1
+### USART_1
+
+Communication with `FT232` hardware to transfer data from accelerometer to PC
 
 | STM32 PIN   | FT232 PIN  |
 |-------------|------------|
 | PB6 (TX)    | RX         |
 | PB7 (RX)    | TX         |
-| GND         | GND         |
+| GND         | GND        |
+
+
+### SPI_1
+
+Communication with accelerometer [LIS302DL](https://www.st.com/resource/en/application_note/an2335-lis302dl-3axis--2g8g-digital-output-ultracompact-linear-accelerometer-stmicroelectronics.pdf)
+
+| STM32 PIN   | FUNCTION   |
+|-------------|------------|
+| PE3         | CS         |
+| PA5         | SCK        |
+| PA6         | MISO       |
+| PA7         | MOSI       |
 
 ## Software
 
@@ -79,9 +93,6 @@ Setup:
 > cargo build --target thumbv7em-none-eabihf
 
 Created .cargo/config file to use cargo build
-
-
-
 
 ## Libs
  - cortex-m - Low level access to Cortex-M processors
