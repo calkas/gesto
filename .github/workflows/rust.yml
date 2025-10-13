@@ -1,4 +1,4 @@
-name: Rust
+name: Build Embedded Rust Project
 
 on:
   push:
@@ -11,11 +11,14 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Config and Build
-    - run: rustup target add thumbv7em-none-eabihf
-    - run: cargo build --verbose
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust target
+        run: rustup target add thumbv7em-none-eabihf
+
+      - name: Build project
+        run: cargo build --verbose
