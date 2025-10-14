@@ -93,10 +93,28 @@ fn main() -> ! {
     // For system frequency more than 65 MHz
     let mut delay = dp.TIM1.delay_us(&clocks);
 
+    // 7. Setup LIS302DL
+    spi_cs.set_low();
+    delay.delay_us(1);
+    spi.write(&[0x20, 0x47]).unwrap(); // CTRL_REG1: Power on, enable X/Y/Z, 100Hz
+    spi_cs.set_high();
+
     // ---------------- CONFIGURATION DONE ----------------
 
     let (mut tx, _rx) = serial.split();
-    writeln!(tx, "Config Done").unwrap();
+
+    // WHO_AM_I (0Fh) to LIS302DL
+    spi_cs.set_low();
+    delay.delay_us(1);
+
+    let read_cmd = 0x80 | 0x0F; // 0x8F
+    let mut buffer = [read_cmd, 0x00];
+    //wyslij i zapisz do tego samego
+    spi.transfer_in_place(&mut buffer).unwrap();
+    let who_am_i_id = buffer[1];
+    spi_cs.set_high();
+
+    writeln!(tx, "WHO_AM_I: {:#X} - All Config Done", who_am_i_id).unwrap();
 
     led.3.set_high();
 
@@ -109,22 +127,21 @@ fn main() -> ! {
             if button.is_high() {
                 led.2.toggle();
 
-                // WHO_AM_I (0Fh) to LIS302DL
                 spi_cs.set_low();
-
-                //Bit 7    = 1 (odczyt)
-                //Bit 6    = 0 (pojedynczy odczyt)
-                //Bity 5-0 = adres rejestru
-
-                let read_cmd = 0x80 | 0x0F; // 0x8F
-                spi.write(&[read_cmd]).unwrap();
-                let mut who_am_i_id = [0];
-                spi.write(&[0x00]).unwrap(); // dummy write
-                spi.read(&mut who_am_i_id).unwrap();
+                delay.delay(1.micros());
+                let x = read_axis(&mut spi, 0x29);
                 spi_cs.set_high();
-
-                // Should be 3Bh
-                write!(tx, "LIS302DL Id: {:#X} ", who_am_i_id[0]).unwrap();
+                delay.delay(1.micros());
+                spi_cs.set_low();
+                delay.delay(1.micros());
+                let y = read_axis(&mut spi, 0x2B);
+                spi_cs.set_high();
+                delay.delay(1.micros());
+                spi_cs.set_low();
+                delay.delay(1.micros());
+                let z = read_axis(&mut spi, 0x2D);
+                spi_cs.set_high();
+                writeln!(tx, "x:{}, y:{}, z:{}", x, y, z).unwrap();
             }
         }
 
@@ -133,4 +150,13 @@ fn main() -> ! {
         //Small delay for CPU
         delay.delay(1.millis());
     }
+}
+
+fn read_axis(spi: &mut Spi<stm32f4xx_hal::pac::SPI1>, reg: u8) -> i8 {
+    let read_cmd = 0x80 | reg;
+    let mut buffer = [read_cmd, 0x00];
+
+    spi.transfer_in_place(&mut buffer).unwrap();
+
+    buffer[1] as i8
 }
