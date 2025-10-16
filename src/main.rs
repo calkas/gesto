@@ -2,9 +2,11 @@
 #![no_main]
 #![no_std]
 
+mod st_disco_handler;
 use core::fmt::Write;
 use cortex_m_rt::entry;
 use panic_halt as _;
+use st_disco_handler::mems::LIS302DL;
 use stm32f4xx_hal::gpio::gpiod::Parts;
 use stm32f4xx_hal::gpio::{Output, Pin, PushPull};
 use stm32f4xx_hal::spi::{Mode, Phase, Polarity, Spi};
@@ -71,7 +73,7 @@ fn main() -> ! {
 
     // 5. SPI1 config alternative AF5
     let gpioe = dp.GPIOE.split();
-    let mut spi_cs = gpioe.pe3.into_push_pull_output();
+    let spi_cs = gpioe.pe3.into_push_pull_output();
     let spi_sck = gpioa.pa5.into_alternate::<5>();
     let spi_miso = gpioa.pa6.into_alternate::<5>();
     let spi_mosi = gpioa.pa7.into_alternate::<5>();
@@ -81,7 +83,7 @@ fn main() -> ! {
         phase: Phase::CaptureOnSecondTransition,
     };
 
-    let mut spi = Spi::new(
+    let spi = Spi::new(
         dp.SPI1,
         (spi_sck, spi_miso, spi_mosi),
         spi_mode,
@@ -93,28 +95,19 @@ fn main() -> ! {
     // For system frequency more than 65 MHz
     let mut delay = dp.TIM1.delay_us(&clocks);
 
-    // 7. Setup LIS302DL
-    spi_cs.set_low();
-    delay.delay_us(1);
-    spi.write(&[0x20, 0x47]).unwrap(); // CTRL_REG1: Power on, enable X/Y/Z, 100Hz
-    spi_cs.set_high();
+    let mut accelerometer = LIS302DL { spi, spi_cs };
+    accelerometer.init();
 
     // ---------------- CONFIGURATION DONE ----------------
 
     let (mut tx, _rx) = serial.split();
 
-    // WHO_AM_I (0Fh) to LIS302DL
-    spi_cs.set_low();
-    delay.delay_us(1);
-
-    let read_cmd = 0x80 | 0x0F; // 0x8F
-    let mut buffer = [read_cmd, 0x00];
-    //wyslij i zapisz do tego samego
-    spi.transfer_in_place(&mut buffer).unwrap();
-    let who_am_i_id = buffer[1];
-    spi_cs.set_high();
-
-    writeln!(tx, "WHO_AM_I: {:#X} - All Config Done", who_am_i_id).unwrap();
+    writeln!(
+        tx,
+        "WHO_AM_I: {:#X} - All Config Done",
+        accelerometer.get_device_id()
+    )
+    .unwrap();
 
     led.3.set_high();
 
@@ -127,36 +120,16 @@ fn main() -> ! {
             if button.is_high() {
                 led.2.toggle();
 
-                spi_cs.set_low();
-                delay.delay(1.micros());
-                let x = read_axis(&mut spi, 0x29);
-                spi_cs.set_high();
-                delay.delay(1.micros());
-                spi_cs.set_low();
-                delay.delay(1.micros());
-                let y = read_axis(&mut spi, 0x2B);
-                spi_cs.set_high();
-                delay.delay(1.micros());
-                spi_cs.set_low();
-                delay.delay(1.micros());
-                let z = read_axis(&mut spi, 0x2D);
-                spi_cs.set_high();
-                writeln!(tx, "x:{}, y:{}, z:{}", x, y, z).unwrap();
+                let status = accelerometer.get_device_status();
+                let x = accelerometer.read_x_axis();
+                let y = accelerometer.read_y_axis();
+                let z = accelerometer.read_z_axis();
+                writeln!(tx, "Status: {} x:{}, y:{}, z:{}", status, x, y, z).unwrap();
             }
         }
-
         last_button_state = current_button_state;
 
         //Small delay for CPU
         delay.delay(1.millis());
     }
-}
-
-fn read_axis(spi: &mut Spi<stm32f4xx_hal::pac::SPI1>, reg: u8) -> i8 {
-    let read_cmd = 0x80 | reg;
-    let mut buffer = [read_cmd, 0x00];
-
-    spi.transfer_in_place(&mut buffer).unwrap();
-
-    buffer[1] as i8
 }
