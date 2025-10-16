@@ -7,28 +7,12 @@ use core::fmt::Write;
 use cortex_m_rt::entry;
 use panic_halt as _;
 use st_disco_handler::mems::LIS302DL;
-use stm32f4xx_hal::gpio::gpiod::Parts;
-use stm32f4xx_hal::gpio::{Output, Pin, PushPull};
 use stm32f4xx_hal::spi::{Mode, Phase, Polarity, Spi};
 use stm32f4xx_hal::timer::*;
 use stm32f4xx_hal::uart::{Config, Serial};
 use stm32f4xx_hal::{pac, prelude::*};
 
-type LedPinOut = (
-    Pin<'D', 12, Output<PushPull>>,
-    Pin<'D', 13, Output<PushPull>>,
-    Pin<'D', 14, Output<PushPull>>,
-    Pin<'D', 15, Output<PushPull>>,
-);
-
-fn get_led(led_port: Parts) -> LedPinOut {
-    let led_green = led_port.pd12.into_push_pull_output();
-    let led_red = led_port.pd13.into_push_pull_output();
-    let led_orange = led_port.pd14.into_push_pull_output();
-    let led_blue = led_port.pd15.into_push_pull_output();
-
-    (led_green, led_red, led_orange, led_blue)
-}
+use st_disco_handler::leds::Led;
 
 //iteam lvl macro
 #[entry]
@@ -52,8 +36,12 @@ fn main() -> ! {
 
     // 3. Led config
     let gpiod = dp.GPIOD.split();
-    let mut led = get_led(gpiod);
-    led.0.set_high();
+    let mut led = Led {
+        green: gpiod.pd12.into_push_pull_output(),
+        red: gpiod.pd13.into_push_pull_output(),
+        orange: gpiod.pd14.into_push_pull_output(),
+        blue: gpiod.pd15.into_push_pull_output(),
+    };
 
     // 4. USART1 config alternative AF7
     let gpiob = dp.GPIOB.split();
@@ -109,7 +97,7 @@ fn main() -> ! {
     )
     .unwrap();
 
-    led.3.set_high();
+    led.blue.set_high();
 
     let mut last_button_state = false;
     loop {
@@ -118,7 +106,7 @@ fn main() -> ! {
         if current_button_state && !last_button_state {
             delay.delay(20.millis());
             if button.is_high() {
-                led.2.toggle();
+                led.orange.toggle();
 
                 let status = accelerometer.get_device_status();
                 let x = accelerometer.read_x_axis();
