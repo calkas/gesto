@@ -27,8 +27,7 @@ where
 {
     /// # init
     /// START-UP SEQUENCE:
-    /// - CTRL_REG1: With this command the three acceleration channels (i.e. X, Y and Z axis) are
-    /// enabled and the Output Data Rate is set to 100 Hz
+    /// - CTRL_REG1: With this command the three acceleration channels (i.e. X, Y and Z axis) are enabled and the Output Data Rate is set to 100 Hz
     pub fn init(&mut self) {
         let control_register = 0x20;
         self.spi_cs.set_low();
@@ -78,7 +77,7 @@ where
         self.spi_cs.set_high();
         self.wait_1us();
 
-        return buffer[1];
+        buffer[1]
     }
 
     /// This only works if uC works on 168 Mhz
