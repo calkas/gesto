@@ -86,6 +86,8 @@ fn main() -> ! {
     let mut accelerometer = LIS302DL { spi, spi_cs };
     accelerometer.init();
 
+    //let sampling_timer = Timer::new(dp.TIM5, &clocks);
+
     // ---------------- CONFIGURATION DONE ----------------
 
     let (mut tx, _rx) = serial.split();
@@ -100,21 +102,44 @@ fn main() -> ! {
     led.blue.set_high();
 
     let mut last_button_state = false;
+
+    let mut start_gesture_sampling = false;
+
     loop {
         let current_button_state = button.is_high();
 
         if current_button_state && !last_button_state {
             delay.delay(20.millis());
             if button.is_high() {
-                led.orange.toggle();
+                led.green.set_high();
+                writeln!(tx, "Start Gesture Sampling...").unwrap();
+                start_gesture_sampling = true;
+            }
+        }
 
-                let status = accelerometer.get_device_status();
+        if start_gesture_sampling {
+            for i in 1..=100 {
                 let x = accelerometer.read_x_axis();
                 let y = accelerometer.read_y_axis();
                 let z = accelerometer.read_z_axis();
-                writeln!(tx, "Status: {} x:{}, y:{}, z:{}", status, x, y, z).unwrap();
+
+                writeln!(
+                    tx,
+                    "t:{} x:{}, y:{}, z:{} - swipe",
+                    (i as f32 * 0.01),
+                    x,
+                    y,
+                    z
+                )
+                .unwrap();
+                delay.delay(10.millis());
             }
+
+            start_gesture_sampling = false;
+            led.green.set_low();
+            writeln!(tx, "DONE!").unwrap();
         }
+
         last_button_state = current_button_state;
 
         //Small delay for CPU
