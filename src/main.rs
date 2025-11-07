@@ -14,6 +14,10 @@ use stm32f4xx_hal::{pac, prelude::*};
 
 use st_disco_handler::leds::Led;
 
+const GESTURE_SAMPLES: usize = 100;
+const SAMPLE_DELAY: u32 = 10;
+const DEBOUNCING_DELAY: u32 = 20;
+
 //iteam lvl macro
 #[entry]
 fn main() -> ! {
@@ -102,39 +106,62 @@ fn main() -> ! {
     led.blue.set_high();
 
     let mut last_button_state = false;
-
     let mut start_gesture_sampling = false;
+
+    writeln!(tx, "t,x,y,z,label").unwrap();
 
     loop {
         let current_button_state = button.is_high();
 
         if current_button_state && !last_button_state {
-            delay.delay(20.millis());
+            delay.delay(DEBOUNCING_DELAY.millis());
             if button.is_high() {
                 led.green.set_high();
-                writeln!(tx, "Start Gesture Sampling...").unwrap();
+                writeln!(tx, "Start Gesture Sampling").unwrap();
                 start_gesture_sampling = true;
             }
         }
 
         if start_gesture_sampling {
-            for i in 1..=100 {
+            // SWIPE
+            writeln!(tx, "Start collecting swipe:").unwrap();
+            for i in 0..GESTURE_SAMPLES {
                 let x = accelerometer.read_x_axis();
                 let y = accelerometer.read_y_axis();
                 let z = accelerometer.read_z_axis();
 
                 writeln!(
                     tx,
-                    "t:{} x:{}, y:{}, z:{} - swipe",
-                    (i as f32 * 0.01),
+                    "{:.2},{},{},{},swipe",
+                    (i as f32 * SAMPLE_DELAY as f32 / 1000.0),
                     x,
                     y,
                     z
                 )
                 .unwrap();
-                delay.delay(10.millis());
+                delay.delay(SAMPLE_DELAY.millis());
             }
 
+            delay.delay(500.millis());
+
+            // IDLE
+            writeln!(tx, "Start collecting idle:").unwrap();
+            for i in 0..GESTURE_SAMPLES {
+                let x = accelerometer.read_x_axis();
+                let y = accelerometer.read_y_axis();
+                let z = accelerometer.read_z_axis();
+
+                writeln!(
+                    tx,
+                    "{:.2},{},{},{},idle",
+                    (i as f32 * SAMPLE_DELAY as f32 / 1000.0),
+                    x,
+                    y,
+                    z
+                )
+                .unwrap();
+                delay.delay(SAMPLE_DELAY.millis());
+            }
             start_gesture_sampling = false;
             led.green.set_low();
             writeln!(tx, "DONE!").unwrap();
