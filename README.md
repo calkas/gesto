@@ -8,6 +8,9 @@ This project implements a gesture recognition system based on accelerometer data
 
 [Schematic](https://www.st.com/resource/en/schematic_pack/mb997-f407vgt6-b02_schematic.pdf)
 
+
+![Hardware_Image](./doc/hardware_pic.png)
+
 ### Memory layout
 
 ```cpp
@@ -122,6 +125,74 @@ Created .cargo/config file to use cargo build
  - cortex-m - Low level access to Cortex-M processors
  - cortex-m-rt - startup code and minimal runtime for Cortex-M microcontrollers
  - stm32f4xx-hal - Multi device hardware abstraction on top of the peripheral access API for the STMicro STM32F4 series microcontrollers.
+
+
+## ML Model
+
+### Data Input
+
+Data collecting procedure for swipe gesture:
+
+```bash
+[Swipe sampling 10ms] * 100 -> [delay 0,5s] -> [Idle sampling 10ms] * 100
+```
+
+#### Swipe gesture data:
+
+```bash
+t,x,y,z,label
+0.00,-2,-3,52,swipe
+0.01,-2,-3,52,swipe
+0.02,-2,-3,52,swipe
+0.03,-2,-3,52,swipe
+0.04,-5,-5,52,swipe
+...
+0.00,-2,-2,51,idle
+0.01,-3,-3,52,idle
+0.02,-2,-3,52,idle
+0.03,-2,-3,52,idle
+0.04,-2,-3,52,idle
+...
+```
+
+### Model
+
+```python
+model = keras.Sequential([
+    keras.layers.Input(shape=(window_size*3,)),
+    keras.layers.Dense(64, activation='relu'),
+    keras.layers.Dense(32, activation='relu'),
+    keras.layers.Dense(num_classes, activation='softmax')
+]) #signmoid
+optimizer = keras.optimizers.Adam(learning_rate=0.0001)
+
+model.compile(optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+model.summary()
+
+# Output
+
+Model: "sequential_1"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Layer (type)                    ┃ Output Shape           ┃       Param # ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ dense_3 (Dense)                 │ (None, 64)             │        19,264 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ dense_4 (Dense)                 │ (None, 32)             │         2,080 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ dense_5 (Dense)                 │ (None, 2)              │            66 │
+└─────────────────────────────────┴────────────────────────┴───────────────┘
+ Total params: 21,410 (83.63 KB)
+ Trainable params: 21,410 (83.63 KB)
+ Non-trainable params: 0 (0.00 B)
+
+```
+
+
+### Training result
+
+![Model_Image](./model_ml/model_train_view.png)
+
+
 
 ## Links
  - [Useful](https://gist.github.com/BlinkingApe/9b4f5202c0294ce47a883633fc94e71b#file-config-toml)
