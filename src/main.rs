@@ -3,6 +3,7 @@
 #![no_std]
 
 mod st_disco_handler;
+mod tflm_wrapper;
 use core::fmt::Write;
 use cortex_m_rt::entry;
 use panic_halt as _;
@@ -14,13 +15,22 @@ use stm32f4xx_hal::{pac, prelude::*};
 
 use st_disco_handler::leds::Led;
 
+use tflm_wrapper::tflm_wrapper::*;
+
 const GESTURE_SAMPLES: usize = 100;
 const SAMPLE_DELAY: u32 = 10;
 const DEBOUNCING_DELAY: u32 = 20;
 
+// #[link(name = "model_ml")]
+// unsafe extern "C" {
+//     fn init_model();
+//     fn run_inference(input: *const f32, output: *mut f32);
+// }
+
 //iteam lvl macro
 #[entry]
 fn main() -> ! {
+    let model_data = include_bytes!("gesture_model_accu86.tflite");
     // ---------------- CONFIGURATION ----------------
 
     // 1. Device Peripherals and clocks
@@ -93,6 +103,22 @@ fn main() -> ! {
     //let sampling_timer = Timer::new(dp.TIM5, &clocks);
 
     // ---------------- CONFIGURATION DONE ----------------
+
+    // ---------------- DUMMY FFI INVOKE ----------------
+
+    // let res = init_model(model_data);
+    // if res.is_err() {
+    //     led.green.set_high();
+    // }
+
+    // let input = [0.1_f32, 0.2, 0.3];
+    // set_input(&input);
+
+    // invoke().unwrap();
+    // led.red.set_high();
+
+    // let mut output_model = [0.0_f32; 1];
+    // get_output(&mut output_model);
 
     let (mut tx, _rx) = serial.split();
 

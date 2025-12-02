@@ -190,8 +190,18 @@ Model: "sequential_1"
 
 ### Training result
 
-![Model_Image](./model_ml/model_train_view.png)
+![Model_Image](./doc/model_train_view.png)
 
+
+
+### Tensorflow Lite Library
+
+Build
+> make -f tensorflow/lite/micro/tools/make/Makefile TARGET=cortex_m_generic TARGET_ARCH=cortex-m4 microlite
+
+Generate required files
+
+> python3 tensorflow/lite/micro/tools/project_generation/create_tflm_tree.py -e hello_world --makefile_options="TARGET=cortex_m_generic TARGET_ARCH=cortex-m4" ../tflm-tree-2.5.0
 
 
 ## Links

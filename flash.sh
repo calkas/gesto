@@ -11,4 +11,4 @@ fi
 
 # Flashing with OpenOCD
 openocd -f interface/stlink.cfg -f target/stm32f4x.cfg \
-  -c "program $ELF_PATH verify reset exit"
+  -c "program $ELF_PATH reset exit"
