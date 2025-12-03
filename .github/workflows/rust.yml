@@ -17,8 +17,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi g++-arm-none-eabi
+
       - name: Install Rust target
         run: rustup target add thumbv7em-none-eabihf
 
       - name: Build project
-        run: cargo build --verbose
+        run: cargo build --verbose --target thumbv7em-none-eabihf
