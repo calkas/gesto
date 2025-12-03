@@ -21,16 +21,11 @@ const GESTURE_SAMPLES: usize = 100;
 const SAMPLE_DELAY: u32 = 10;
 const DEBOUNCING_DELAY: u32 = 20;
 
-// #[link(name = "model_ml")]
-// unsafe extern "C" {
-//     fn init_model();
-//     fn run_inference(input: *const f32, output: *mut f32);
-// }
+const MODEL: &[u8] = include_bytes!("gesture_model_accu86.tflite");
 
 //iteam lvl macro
 #[entry]
 fn main() -> ! {
-    let model_data = include_bytes!("gesture_model_accu86.tflite");
     // ---------------- CONFIGURATION ----------------
 
     // 1. Device Peripherals and clocks
@@ -52,8 +47,8 @@ fn main() -> ! {
     let gpiod = dp.GPIOD.split();
     let mut led = Led {
         green: gpiod.pd12.into_push_pull_output(),
-        red: gpiod.pd13.into_push_pull_output(),
-        orange: gpiod.pd14.into_push_pull_output(),
+        red: gpiod.pd14.into_push_pull_output(),
+        orange: gpiod.pd13.into_push_pull_output(),
         blue: gpiod.pd15.into_push_pull_output(),
     };
 
@@ -106,18 +101,18 @@ fn main() -> ! {
 
     // ---------------- DUMMY FFI INVOKE ----------------
 
-    // let res = init_model(model_data);
-    // if res.is_err() {
-    //     led.green.set_high();
-    // }
+    let res = init_model(MODEL);
+    if res.is_err() {
+        led.orange.set_high();
+    }
 
-    // let input = [0.1_f32, 0.2, 0.3];
+    // let input = [0.0; 300];
     // set_input(&input);
 
     // invoke().unwrap();
     // led.red.set_high();
 
-    // let mut output_model = [0.0_f32; 1];
+    // let mut output_model = [0.0_f32; 2];
     // get_output(&mut output_model);
 
     let (mut tx, _rx) = serial.split();
