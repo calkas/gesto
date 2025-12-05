@@ -2,26 +2,22 @@
 #![no_main]
 #![no_std]
 
-mod st_disco_handler;
-mod tflm_wrapper;
 use core::fmt::Write;
 use cortex_m_rt::entry;
+use gesto::st_disco_handler::leds::Led;
+use gesto::st_disco_handler::mems::LIS302DL;
+use gesto::tflm_wrapper::tflm_wrapper::*;
 use panic_halt as _;
-use st_disco_handler::mems::LIS302DL;
 use stm32f4xx_hal::spi::{Mode, Phase, Polarity, Spi};
 use stm32f4xx_hal::timer::*;
 use stm32f4xx_hal::uart::{Config, Serial};
 use stm32f4xx_hal::{pac, prelude::*};
 
-use st_disco_handler::leds::Led;
-
-use tflm_wrapper::tflm_wrapper::*;
-
 const GESTURE_SAMPLES: usize = 100;
 const SAMPLE_DELAY: u32 = 10;
 const DEBOUNCING_DELAY: u32 = 20;
 
-const MODEL: &[u8] = include_bytes!("gesture_model_accu86.tflite");
+const MODEL: &[u8] = include_bytes!("../gesture_model_accu86.tflite");
 
 //iteam lvl macro
 #[entry]
@@ -99,22 +95,6 @@ fn main() -> ! {
 
     // ---------------- CONFIGURATION DONE ----------------
 
-    // ---------------- DUMMY FFI INVOKE ----------------
-
-    let res = init_model(MODEL);
-    if res.is_err() {
-        led.orange.set_high();
-    }
-
-    // let input = [0.0; 300];
-    // set_input(&input);
-
-    // invoke().unwrap();
-    // led.red.set_high();
-
-    // let mut output_model = [0.0_f32; 2];
-    // get_output(&mut output_model);
-
     let (mut tx, _rx) = serial.split();
 
     writeln!(
@@ -130,6 +110,22 @@ fn main() -> ! {
     let mut start_gesture_sampling = false;
 
     writeln!(tx, "t,x,y,z,label").unwrap();
+
+    // ---------------- DUMMY FFI INVOKE ----------------
+
+    let res = init_model(MODEL);
+    if res.is_err() {
+        led.orange.set_high();
+    }
+
+    // let input = [0.0; 300];
+    // set_input(&input);
+
+    // invoke().unwrap();
+    // led.red.set_high();
+
+    // let mut output_model = [0.0_f32; 2];
+    // get_output(&mut output_model);
 
     loop {
         let current_button_state = button.is_high();

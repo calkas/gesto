@@ -1,3 +1,7 @@
+use core::result::Result;
+use core::result::Result::Err;
+use core::result::Result::Ok;
+
 extern "C" {
     fn tflm_init(model_data: *const u8, model_size: usize) -> i32;
     fn tflm_set_input(data: *const f32, len: i32);
