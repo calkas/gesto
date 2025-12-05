@@ -1,9 +1,9 @@
-//crate lvl macro
 #![no_main]
 #![no_std]
 
 use core::fmt::Write;
 use cortex_m_rt::entry;
+
 use gesto::st_disco_handler::leds::Led;
 use gesto::st_disco_handler::mems::LIS302DL;
 use gesto::tflm_wrapper::tflm_wrapper::*;
@@ -13,33 +13,58 @@ use stm32f4xx_hal::timer::*;
 use stm32f4xx_hal::uart::{Config, Serial};
 use stm32f4xx_hal::{pac, prelude::*};
 
-const GESTURE_SAMPLES: usize = 100;
-const SAMPLE_DELAY: u32 = 10;
-const DEBOUNCING_DELAY: u32 = 20;
+// ---- Parametry wejścia do modelu ----
+const TIMESTEPS: usize = 100; // liczba próbek w oknie
+const FEATS: usize = 3; // X/Y/Z
+const INPUT_LEN: usize = TIMESTEPS * FEATS;
 
+const SAMPLE_DELAY_MS: u32 = 10; // odstęp próbkowania
+const DEBOUNCE_MS: u32 = 20;
+
+// Model trzymany w FLASH (rodata)
 const MODEL: &[u8] = include_bytes!("../gesture_model_accu86.tflite");
 
-//iteam lvl macro
+// Prosta normalizacja:
+// LIS302DL (±2g): czułość ~18 mg/LSB => 0.018 g/LSB
+#[inline]
+fn norm_acc(raw: i8) -> f32 {
+    const G_PER_LSB: f32 = 0.018;
+    (raw as f32) * G_PER_LSB
+}
+
+#[inline]
+fn argmax(xs: &[f32]) -> usize {
+    let mut best_i = 0usize;
+    let mut best_v = f32::NEG_INFINITY;
+    for (i, &v) in xs.iter().enumerate() {
+        if v > best_v {
+            best_v = v;
+            best_i = i;
+        }
+    }
+    best_i
+}
+
 #[entry]
 fn main() -> ! {
     // ---------------- CONFIGURATION ----------------
 
-    // 1. Device Peripherals and clocks
+    // 1) Peripherals i zegary
     let dp = pac::Peripherals::take().unwrap();
     let rcc = dp.RCC.constrain();
     let clocks = rcc
         .cfgr
         .use_hse(8.MHz()) // zewnętrzny kwarc 8 MHz
-        .sysclk(168.MHz()) // systemowy zegar 168 MHz
-        .pclk1(42.MHz()) // APB1 max 42 MHz
-        .pclk2(84.MHz()) // APB2 max 84 MHz
-        .freeze(); // zatwierdzenie konfiguracji
+        .sysclk(168.MHz()) // system 168 MHz (F407 max)
+        .pclk1(42.MHz()) // APB1
+        .pclk2(84.MHz()) // APB2
+        .freeze();
 
-    // 2. User Button config
+    // 2) Przycisk (USER)
     let gpioa = dp.GPIOA.split();
     let button = gpioa.pa0.into_input();
 
-    // 3. Led config
+    // 3) LEDy
     let gpiod = dp.GPIOD.split();
     let mut led = Led {
         green: gpiod.pd12.into_push_pull_output(),
@@ -48,34 +73,32 @@ fn main() -> ! {
         blue: gpiod.pd15.into_push_pull_output(),
     };
 
-    // 4. USART1 config alternative AF7
+    // 4) UART (USART1, AF7)
     let gpiob = dp.GPIOB.split();
     let usart_tx_pin = gpiob.pb6.into_alternate::<7>();
     let usart_rx_pin = gpiob.pb7.into_alternate::<7>();
-
     let serial: Serial<pac::USART1, u8> = Serial::new(
         dp.USART1,
         (usart_tx_pin, usart_rx_pin),
         Config::default()
-            .baudrate(115200.bps())
+            .baudrate(115_200.bps())
             .wordlength_8()
             .parity_none(),
         &clocks,
     )
     .unwrap();
+    let (mut tx, _rx) = serial.split();
 
-    // 5. SPI1 config alternative AF5
+    // 5) SPI1 (AF5) dla LIS302DL
     let gpioe = dp.GPIOE.split();
     let spi_cs = gpioe.pe3.into_push_pull_output();
     let spi_sck = gpioa.pa5.into_alternate::<5>();
     let spi_miso = gpioa.pa6.into_alternate::<5>();
     let spi_mosi = gpioa.pa7.into_alternate::<5>();
-
     let spi_mode = Mode {
         polarity: Polarity::IdleHigh,
         phase: Phase::CaptureOnSecondTransition,
     };
-
     let spi = Spi::new(
         dp.SPI1,
         (spi_sck, spi_miso, spi_mosi),
@@ -84,109 +107,94 @@ fn main() -> ! {
         &clocks,
     );
 
-    // 6. Delay config
-    // For system frequency more than 65 MHz
+    // 6) Delay (TIM1 dla >65 MHz)
     let mut delay = dp.TIM1.delay_us(&clocks);
 
+    // 7) Akcelerometr
     let mut accelerometer = LIS302DL { spi, spi_cs };
     accelerometer.init();
 
-    //let sampling_timer = Timer::new(dp.TIM5, &clocks);
-
     // ---------------- CONFIGURATION DONE ----------------
-
-    let (mut tx, _rx) = serial.split();
 
     writeln!(
         tx,
-        "WHO_AM_I: {:#X} - All Config Done",
+        "WHO_AM_I: {:#X} - Config OK",
         accelerometer.get_device_id()
     )
-    .unwrap();
-
+    .ok();
     led.blue.set_high();
 
-    let mut last_button_state = false;
-    let mut start_gesture_sampling = false;
-
-    writeln!(tx, "t,x,y,z,label").unwrap();
-
-    // ---------------- DUMMY FFI INVOKE ----------------
-
-    let res = init_model(MODEL);
-    if res.is_err() {
-        led.orange.set_high();
+    // ---- Inicjalizacja modelu ----
+    match init_model(MODEL) {
+        Ok(()) => {
+            writeln!(tx, "Model init: OK").ok();
+        }
+        Err(_) => {
+            writeln!(tx, "Model init: ERR").ok();
+            led.orange.set_high();
+        }
     }
 
-    // let input = [0.0; 300];
-    // set_input(&input);
+    writeln!(tx, "Press USER button to capture {TIMESTEPS} samples…").ok();
 
-    // invoke().unwrap();
-    // led.red.set_high();
-
-    // let mut output_model = [0.0_f32; 2];
-    // get_output(&mut output_model);
-
+    let mut last_button = false;
     loop {
-        let current_button_state = button.is_high();
+        let b = button.is_high();
 
-        if current_button_state && !last_button_state {
-            delay.delay(DEBOUNCING_DELAY.millis());
+        if b && !last_button {
+            delay.delay(DEBOUNCE_MS.millis());
             if button.is_high() {
                 led.green.set_high();
-                writeln!(tx, "Start Gesture Sampling").unwrap();
-                start_gesture_sampling = true;
+                led.red.set_low();
+                writeln!(
+                    tx,
+                    "Start capture window ({TIMESTEPS} samples @ {} ms)…",
+                    SAMPLE_DELAY_MS
+                )
+                .unwrap();
+                let mut input: [f32; INPUT_LEN] = [0.0; INPUT_LEN];
+
+                for i in 0..TIMESTEPS {
+                    let x_raw = accelerometer.read_x_axis();
+                    let y_raw = accelerometer.read_y_axis();
+                    let z_raw = accelerometer.read_z_axis();
+
+                    // Normalizacja -> f32
+                    let x = norm_acc(x_raw);
+                    let y = norm_acc(y_raw);
+                    let z = norm_acc(z_raw);
+
+                    // Spakowanie do formatu modelu: [x0,y0,z0, x1,y1,z1, ...]
+                    let base = i * FEATS;
+                    input[base + 0] = x;
+                    input[base + 1] = y;
+                    input[base + 2] = z;
+
+                    delay.delay(SAMPLE_DELAY_MS.millis());
+                }
+
+                set_input(&input);
+                let status = invoke();
+                if status.is_err() {
+                    writeln!(tx, "invoke: ERR").unwrap();
+                    led.red.set_high();
+                } else {
+                    let mut output: [f32; 2] = [0.0; 2];
+                    get_output(&mut output);
+                    let cls = argmax(&output);
+                    // 0 → idle, 1 → swipe
+                    match cls {
+                        0 => writeln!(tx, "idle").unwrap(),
+                        1 => writeln!(tx, "swipe").unwrap(),
+                        _ => {}
+                    }
+                }
+                led.green.set_low();
+                writeln!(tx, "DONE.\n").ok();
             }
         }
 
-        if start_gesture_sampling {
-            // SWIPE
-            writeln!(tx, "Start collecting swipe:").unwrap();
-            for i in 0..GESTURE_SAMPLES {
-                let x = accelerometer.read_x_axis();
-                let y = accelerometer.read_y_axis();
-                let z = accelerometer.read_z_axis();
-
-                writeln!(
-                    tx,
-                    "{:.2},{},{},{},swipe",
-                    (i as f32 * SAMPLE_DELAY as f32 / 1000.0),
-                    x,
-                    y,
-                    z
-                )
-                .unwrap();
-                delay.delay(SAMPLE_DELAY.millis());
-            }
-
-            delay.delay(500.millis());
-
-            // IDLE
-            writeln!(tx, "Start collecting idle:").unwrap();
-            for i in 0..GESTURE_SAMPLES {
-                let x = accelerometer.read_x_axis();
-                let y = accelerometer.read_y_axis();
-                let z = accelerometer.read_z_axis();
-
-                writeln!(
-                    tx,
-                    "{:.2},{},{},{},idle",
-                    (i as f32 * SAMPLE_DELAY as f32 / 1000.0),
-                    x,
-                    y,
-                    z
-                )
-                .unwrap();
-                delay.delay(SAMPLE_DELAY.millis());
-            }
-            start_gesture_sampling = false;
-            led.green.set_low();
-            writeln!(tx, "DONE!").unwrap();
-        }
-
-        last_button_state = current_button_state;
-
-        //Small delay for CPU
+        last_button = b;
         delay.delay(1.millis());
     }
 }
