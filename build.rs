@@ -2,7 +2,7 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    // Przebuduj gdy wrapper/TFLM się zmienia
+    // Rebuild when wrapper/TFLM changes
     println!("cargo:rerun-if-changed=lib/tflm_tree/tflm_wrapper.cc");
     println!("cargo:rerun-if-changed=lib/tflm_tree");
     println!("cargo:rerun-if-changed=lib");
@@ -34,18 +34,10 @@ fn main() {
 
     build.compile("tflm_wrapper");
 
-    // Ścieżki i biblioteki do linkowania
+    // Add paths and libs for linking
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     println!("cargo:rustc-link-search=native=lib");
     println!("cargo:rustc-link-lib=static=tensorflow-microlite");
     println!("cargo:rustc-link-lib=static=tflm_wrapper");
-
-    // println!(
-    //     "cargo:rustc-link-search=native={}",
-    //     std::env::var("OUT_DIR").unwrap()
-    // );
-    // println!("cargo:rustc-link-search=native=lib");
-    // println!("cargo:rustc-link-lib=static=tensorflow-microlite");
-    // println!("cargo:rustc-link-lib=static=tflm_wrapper");
 }
